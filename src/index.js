@@ -69,7 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       bigWin: null,
       buttonClick: null,
       balanceChange: null,
-      smsNotification: null,
       magicalWin: null
     };
 
@@ -93,7 +92,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadSoundFromBase64('bigWin', AUDIO_DATA.bigWin);
         loadSoundFromBase64('buttonClick', AUDIO_DATA.buttonClick);
         loadSoundFromBase64('balanceChange', AUDIO_DATA.balanceChange);
-        loadSoundFromBase64('smsNotification', AUDIO_DATA.smsNotification);
         loadSoundFromBase64('magicalWin', AUDIO_DATA.magicalWin);
         
         console.log('🎵 Аудио система инициализирована (base64)');
@@ -170,11 +168,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (!audioContext) {
           initAudio();
-        }
-        
-        // Для smsNotification увеличиваем громкость в 2 раза
-        if (soundName === 'smsNotification') {
-          volume = Math.min(volume * 2, 1.0);
         }
         
         if (!sounds[soundName] || !(sounds[soundName] instanceof HTMLAudioElement)) {
@@ -399,7 +392,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         
         const packshotTextures = [
-          'BgDArck', 'BigWinRed', 'Sms', 'Smartphone', 
+          'BgDArck', 'BigWinRed', 'Smartphone', 
           'packshot balls0', 'logo', 'button', 'ph.land', 'ph.port'
         ];
         
@@ -412,10 +405,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const aliasKey = `IMG_${textureName.replace(/\s+/g, '_')}`;
             this.textures[aliasKey] = this.textures[foundKey];
             this.textures[textureName] = this.textures[foundKey];
-            
-            if (textureName === 'Sms') {
-              this.textures['IMG_Sms_Sms_En'] = this.textures[foundKey];
-            }
             
             if (textureName === 'Smartphone') {
               this.textures['IMG_Smartphone_Smartphone_0000'] = this.textures[foundKey];
@@ -1673,7 +1662,7 @@ function setupElements() {
       }, 200);
     }
 
-    // ============ ФУНКЦИИ ПЭКШОТА ============
+    // ============ ФУНКЦИИ ПЭКШОТА (БЕЗ SMS) ============
     
     function normKeyPart(s) {
       return s.replace(/\s+/g, "_").replace(/[^\w.]/g, "");
@@ -1932,33 +1921,6 @@ function setupElements() {
           } else {
             coinsAnim.y = vh * 0.6;
           }
-        }
-      }
-      
-      const sms = packshotElements['sms'];
-      if (sms) {
-        sms.anchor.set(0.5);
-        
-        if (isLandscape) {
-          const maxWidth = vw * 0.4;
-          const maxHeight = vh * 0.3;
-          const scaleByWidth = maxWidth / sms.texture.width;
-          const scaleByHeight = maxHeight / sms.texture.height;
-          const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
-          
-          sms.scale.set(smsTargetScale);
-          sms.x = vw / 2;
-          sms.y = vh * 0.7;
-        } else {
-          const maxWidth = vw * 0.9;
-          const maxHeight = vh * 0.7;
-          const scaleByWidth = maxWidth / sms.texture.width;
-          const scaleByHeight = maxHeight / sms.texture.height;
-          const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
-          
-          sms.scale.set(smsTargetScale);
-          sms.x = vw / 2;
-          sms.y = vh * 0.15;
         }
       }
       
@@ -2280,36 +2242,6 @@ function setupElements() {
         packshotElements['coinsAnim'] = coinsAnim;
       } 
 
-      const sms = await loadSprite(buildKey("IMG", "Sms", "Sms_En"));
-      sms.anchor.set(0.5);
-      
-      if (isLandscape) {
-        const maxWidth = vw * 0.4;
-        const maxHeight = vh * 0.3;
-        const scaleByWidth = maxWidth / sms.texture.width;
-        const scaleByHeight = maxHeight / sms.texture.height;
-        const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
-        
-        sms.scale.set(smsTargetScale);
-        sms.x = vw / 2;
-        sms.y = -sms.height;
-      } else {
-        const maxWidth = vw * 0.9;
-        const maxHeight = vh * 0.7;
-        const scaleByWidth = maxWidth / sms.texture.width;
-        const scaleByHeight = maxHeight / sms.texture.height;
-        const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
-        
-        sms.scale.set(smsTargetScale);
-        sms.x = vw / 2;
-        sms.y = -sms.height;
-      }
-      
-      sms.zIndex = 4;
-      sms.name = 'sms';
-      packshotOverlay.addChild(sms);
-      packshotElements['sms'] = sms;
-      
       const bgDark2 = await loadSprite(buildKey("IMG", "BgDArck"));
       fitFullScreen(bgDark2);
       bgDark2.alpha = 0;
@@ -2384,18 +2316,7 @@ function setupElements() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      let smsTargetY;
-      if (isLandscape) {
-        smsTargetY = vh * 0.15;
-      } else {
-        smsTargetY = vh * 0.15;
-      }
-      
-      await tweenPosition(app, sms, { x: vw / 2, y: smsTargetY }, 500);
-      playSound('smsNotification', 0.8);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Пропускаем SMS этап и сразу переходим к затемнению и телефону
       await tweenValue(app, bgDark2, "alpha", 0, 1, 300);
       
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -2441,7 +2362,8 @@ function setupElements() {
         
         phoneAnim.play();
         
-        playSoundsWithDelay('smsNotification', 'buttonClick', 5, 200);
+        // Воспроизводим звуки без SMS уведомления
+        playSoundsWithDelay('buttonClick', 'buttonClick', 5, 200);
         
         await new Promise(r => setTimeout(r, 5500));
         
