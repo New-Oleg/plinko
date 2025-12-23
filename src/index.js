@@ -1168,7 +1168,6 @@ function setupElements() {
         soundButtonX = soundButton.width / 2 + padding;
         soundButtonY = vh - soundButton.height / 2 - padding;
       } else {
-<<<<<<< Updated upstream
         uiHidderScale = (vh * 0.15 / uiHidder.height) * 0.5;
       }
       uiHidder.scale.set(uiHidderScale);
@@ -1345,10 +1344,8 @@ function setupElements() {
       
       if (isPackshotActive && packshotOverlay && packshotOverlay.parent) {
         updatePackshotLayout();
-=======
         // Для других ориентаций просто опускаем кнопку
         soundButtonY = vh - soundButton.height / 2 - padding * 1.5;
->>>>>>> Stashed changes
       }
     }
     
