@@ -1010,7 +1010,7 @@ function setupElements() {
   // Для разных разрешений разная высота
   if (isSquare || (isPortrait && screenRatio < 0.7)) {
     // Для квадратных и портретных 9х16 - поднимаем выше
-    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 50); // Было -20, теперь -40
+    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 60); // Было -20, теперь -40
   } else {
     // Для остальных случаев
     uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 30); // Было -20, теперь -30
