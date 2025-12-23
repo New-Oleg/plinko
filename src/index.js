@@ -1630,7 +1630,7 @@ function setupElements() {
       const easeProgress = 1 - Math.pow(1 - progress, 2);
       
       displayedBalance = Math.round(
-        balanceAnimation.startValue + 
+        balanceAnimation.startValue +  
         (balanceAnimation.targetValue - balanceAnimation.startValue) * easeProgress
       );
       
