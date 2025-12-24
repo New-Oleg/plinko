@@ -74,14 +74,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Флаг включения/выключения звука
     let isSoundOn = true;
-    
-    // Кнопки звука
-    let soundButton = null;
-    let soundOnTexture = null;
-    let soundOffTexture = null;
-    
-    // Отдельный контейнер для кнопки звука (чтобы была поверх всех элементов)
-    let soundButtonContainer = null;
 
     // Функция инициализации аудио
     function initAudio() {
@@ -226,23 +218,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
     
-    // Функция переключения звука
-    function toggleSound() {
-      isSoundOn = !isSoundOn;
-      
-      // Обновляем текстуру кнопки
-      if (soundButton) {
-        soundButton.texture = isSoundOn ? soundOnTexture : soundOffTexture;
-      }
-      
-      // Воспроизводим звук клика (если звук включен)
-      if (isSoundOn) {
-        playSound('buttonClick', 0.3);
-      }
-      
-      console.log(`🔊 Звук ${isSoundOn ? 'включен' : 'выключен'}`);
-    }
-    
     // Создаем объект для управления ресурсами
     const resourceManager = {
       textures: {},
@@ -252,7 +227,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           await this.loadAllTexturesFromBase64();
           this.createTextureAliases();
           this.checkEssentialTextures();
-          this.loadSoundTextures(); // Загружаем текстуры кнопок звука
           return this.textures;
         } catch (error) {
           console.error('❌ Ошибка загрузки ресурсов:', error);
@@ -315,30 +289,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             resolve();
           }
         });
-      },
-
-      // Загружаем текстуры кнопок звука
-      loadSoundTextures: function() {
-        // Проверяем наличие текстур звука в IMAGE_DATA
-        if (IMAGE_DATA.Sound) {
-          if (IMAGE_DATA.Sound.SoundOFF) {
-            const soundOffBase64 = IMAGE_DATA.Sound.SoundOFF;
-            const imgOff = new Image();
-            imgOff.onload = () => {
-              this.textures['sound_off'] = PIXI.Texture.from(imgOff);
-            };
-            imgOff.src = soundOffBase64;
-          }
-          
-          if (IMAGE_DATA.Sound.SoundOn) {
-            const soundOnBase64 = IMAGE_DATA.Sound.SoundOn;
-            const imgOn = new Image();
-            imgOn.onload = () => {
-              this.textures['sound_on'] = PIXI.Texture.from(imgOn);
-            };
-            imgOn.src = soundOnBase64;
-          }
-        }
       },
 
       createTextureAliases: function() {
@@ -556,12 +506,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     gameContainer = new Container();
     app.stage.addChild(gameContainer);
 
-    // Создаем отдельный контейнер для кнопки звука (самый верхний уровень)
-    soundButtonContainer = new Container();
-    soundButtonContainer.sortableChildren = true;
-    soundButtonContainer.zIndex = 1000000; // Самый высокий zIndex
-    app.stage.addChild(soundButtonContainer);
-
     await resourceManager.loadAllResources();
 
     let handTexture;
@@ -618,30 +562,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     uiHidder = new Sprite(uiHidderTex);
     
     handSprite = new Sprite(handTexture);
-    
-    // Загружаем текстуры для кнопки звука
-    soundOnTexture = resourceManager.getTexture('sound_on');
-    soundOffTexture = resourceManager.getTexture('sound_off');
-    
-    // Создаем кнопку звука с начальной текстурой (звук включен)
-    if (!soundOnTexture) {
-      console.warn('⚠️ Текстура sound_on не найдена, создаю заглушку');
-      soundOnTexture = resourceManager.createPlaceholderTexture('sound_on');
-    }
-    
-    if (!soundOffTexture) {
-      console.warn('⚠️ Текстура sound_off не найдена, создаю заглушку');
-      soundOffTexture = resourceManager.createPlaceholderTexture('sound_off');
-    }
-    
-    soundButton = new Sprite(soundOnTexture);
-    soundButton.eventMode = 'static';
-    soundButton.cursor = 'pointer';
-    soundButton.anchor.set(0.5);
-    soundButton.zIndex = 1000; // Высокий zIndex внутри контейнера
-    
-    // Добавляем кнопку в отдельный контейнер
-    soundButtonContainer.addChild(soundButton);
     
     for (let i = 0; i < 10; i++) {
       ballsArray.push(new Sprite(ballTex));
@@ -995,14 +915,14 @@ function setupElements() {
   }
   uiPanel.scale.set(uiPanelScale);
   
-  // ПОДНИМАЕМ uiPanel ВЫШЕ (освобождаем место для кнопки звука)
+  // ПОДНИМАЕМ uiPanel ВЫШЕ (освобождаем место для других элементов)
   // Для разных разрешений разная высота
   if (isSquare || (isPortrait && screenRatio < 0.7)) {
     // Для квадратных и портретных 9х16 - поднимаем выше
-    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 60); // Было -20, теперь -40
+    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 40);
   } else {
     // Для остальных случаев
-    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 30); // Было -20, теперь -30
+    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 20);
   }
   
   balanceText.anchor.set(0.5);
@@ -1094,9 +1014,9 @@ function setupElements() {
   let playY;
   if (isPortrait) {
     // ПОДНИМАЕМ КНОПКУ PLAY ВЫШЕ (чтобы не пересекалась с поднятым uiPanel)
-    playY = uiPanel.y - uiPanel.height / 2.1 + play.height / 2; // Было /2.2, теперь /2.1
+    playY = uiPanel.y - uiPanel.height / 2.2 + play.height / 2;
   } else {
-    playY = vh - play.height * 1.5; // Было 1.4, теперь 1.5 (поднимаем выше)
+    playY = vh - play.height * 1.4;
   }
   play.position.set(vw / 2, playY);
   play.eventMode = 'static';
@@ -1116,251 +1036,6 @@ function setupElements() {
     
     handSprite.visible = !isFirstClick;
     handSprite.zIndex = 100;
-  }
-  
-  // НАСТРАИВАЕМ КНОПКУ ЗВУКА
-  if (soundButton) {
-    soundButton.scale.set(1);
-    
-    // Размер кнопки звука - примерно 1/20 высоты экрана
-    let targetSize = vh / 25;
-    
-    // Уменьшаем размер кнопки звука в квадратных и портретных 9x16 разрешениях
-    if (isSquare || (isPortrait && screenRatio < 0.7)) {
-      targetSize = vh / 25; // Меньше для квадратных и узких портретных
-    }
-    
-    const currentWidth = soundButton.width;
-    const soundButtonScale = targetSize / currentWidth;
-    
-    soundButton.scale.set(soundButtonScale);
-    
-    // Позиционируем в левом нижнем углу с отступами
-    const padding = targetSize * 0.4; // Отступ от краев
-    let soundButtonX = soundButton.width / 2 + padding;
-    let soundButtonY = vh - soundButton.height / 2 - padding;
-    
-    // Проверяем, что кнопка звука не пересекается с uiPanel
-    const uiPanelBottom = uiPanel.y + uiPanel.height / 2;
-    const soundButtonTop = soundButtonY - soundButton.height / 2;
-    
-    // Если кнопка звука слишком близко к uiPanel, опускаем её ниже
-    // или уменьшаем размер
-    if (soundButtonTop < uiPanelBottom + 5) {
-      // Для квадратных и портретных 9x16 делаем кнопку меньше и позиционируем точно в угол
-      if (isSquare || (isPortrait && screenRatio < 0.7)) {
-        // Ещё больше уменьшаем размер
-        const smallerSize = vh / 28;
-        const smallerScale = smallerSize / currentWidth;
-        soundButton.scale.set(smallerScale);
-        
-        soundButtonX = soundButton.width / 2 + padding;
-        soundButtonY = vh - soundButton.height / 2 - padding;
-      } else {
-        uiHidderScale = (vh * 0.15 / uiHidder.height) * 0.5;
-      }
-      uiHidder.scale.set(uiHidderScale);
-      uiHidder.position.set(vw / 2, uiHidder.height / 2 + 10);
-      
-      uiPanel.anchor.set(0.5);
-      uiPanel.scale.set(1);
-      
-      let uiPanelScale;
-      if (isPortrait) {
-        uiPanelScale = vw * 0.9 / uiPanel.width;
-      } else {
-        uiPanelScale = vh * 0.25 / uiPanel.height;
-      }
-      uiPanel.scale.set(uiPanelScale);
-      uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 10);
-      
-      balanceText.anchor.set(0.5);
-      
-      // РАЗНЫЙ РАЗМЕР ШРИФТА В ЗАВИСИМОСТИ ОТ СООТНОШЕНИЯ СТОРОН
-      let balanceFontSize;
-      if (isPortrait) {
-        // Для портретной ориентации
-        const baseFontSize = uiHidder.height * 2;
-        balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
-      } else {
-        // Для горизонтальной ориентации
-        const baseFontSize = uiHidder.height * 5;
-        balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
-      }
-      
-      // Ограничиваем минимальный и максимальный размер шрифта
-      const minFontSize = 24;
-      const maxFontSize = 120;
-      balanceFontSize = Math.max(minFontSize, Math.min(balanceFontSize, maxFontSize));
-      
-      balanceText.style.fontSize = balanceFontSize;
-      balanceText.position.set(0, 0);
-      
-      betText.anchor.set(0.5);
-      
-      // Также настраиваем размер шрифта для BET
-      let betFontSize;
-      if (isPortrait) {
-        const baseBetFontSize = uiPanel.height * 0.18;
-        betFontSize = getFontSizeForAspectRatio(baseBetFontSize);
-      } else {
-        const baseBetFontSize = uiPanel.height * 0.18;
-        betFontSize = getFontSizeForAspectRatio(baseBetFontSize);
-      }
-      
-      // Ограничиваем размер шрифта BET
-      const minBetFontSize = 16;
-      const maxBetFontSize = 40;
-      betFontSize = Math.max(minBetFontSize, Math.min(betFontSize, maxBetFontSize));
-      
-      betText.style.fontSize = betFontSize;
-      betText.position.set(0, 0 + 100);
-      
-      field.anchor.set(0.5);
-      
-      const uiHidderBottom = uiHidder.y + uiHidder.height / 2;
-      const uiPanelTop = uiPanel.y - uiPanel.height / 2;
-      const availableHeight = uiPanelTop - uiHidderBottom;
-      const availableWidth = vw * 0.9;
-      
-      const scaleByWidth = availableWidth / fw;
-      const scaleByHeight = availableHeight / fw;
-      
-      let fieldScale = Math.min(scaleByWidth, scaleByHeight);
-      
-      const minScale = 0.3;
-      const maxScale = 1.0;
-      fieldScale = Math.max(minScale, Math.min(fieldScale, maxScale));
-      
-      field.scale.set(fieldScale);
-      
-      const fieldX = vw / 2;
-      const fieldY = uiHidderBottom + availableHeight / 2;
-      
-      field.position.set(fieldX, fieldY);
-      
-      ballsArray.forEach((ballSprite, index) => {
-        ballSprite.anchor.set(0.5);
-        ballSprite.scale.set(0.027 * (1 / fieldScale));
-        ballSprite.visible = false;
-        
-        if (ballPaths[index] && ballPaths[index][0]) {
-          ballSprite.position.set(ballPaths[index][0].x, ballPaths[index][0].y);
-        }
-      });
-      
-      play.anchor.set(0.5);
-      play.scale.set(1);
-      
-      let playScale;
-      if (isPortrait) {
-        playScale = Math.min(vw * 0.25, vh * 0.18) / play.width;
-      } else {
-        playScale = Math.min(vw * 0.2, vh * 0.15) / play.width;
-      }
-      play.scale.set(playScale);
-      
-      let playY;
-      if (isPortrait) {
-        playY = uiPanel.y - uiPanel.height / 2.4 + play.height / 2;
-      } else {
-        playY = vh - play.height * 1.2;
-      }
-      play.position.set(vw / 2, playY);
-      play.eventMode = 'static';
-      play.cursor = 'pointer';
-      
-      if (handSprite) {
-        handSprite.anchor.set(0.5,0.5);
-        handSprite.scale.set(0.6);
-        
-        const handOffsetX = -play.width * 0.1;
-        const handOffsetY = -play.height * 0.1;
-        
-        handSprite.position.set(
-          play.x + play.width / 2 + handOffsetX,
-          play.y + play.height / 2 + handOffsetY
-        );
-        
-        handSprite.visible = !isFirstClick;
-        handSprite.zIndex = 100;
-      }
-      
-      multiplierSprites.forEach(sprite => {
-        if (sprite.userData) {
-          sprite.userData.originalY = sprite.y;
-        }
-      });
-      
-      gameContainer.removeChildren();
-      gameContainer.addChild(bg);
-      gameContainer.addChild(field);
-      gameContainer.addChild(uiHidder);
-      gameContainer.addChild(uiPanel);
-      gameContainer.addChild(play);
-      
-      if (handSprite) {
-        gameContainer.addChild(handSprite);
-      }
-      
-      uiPanel.addChild(betText);
-      uiHidder.addChild(balanceText);
-      
-      ballsArray.forEach(ballSprite => {
-        field.addChild(ballSprite);
-      });
-      
-      setupMultipliers();
-      
-      play.removeAllListeners();
-      play.on('pointerdown', (event) => {
-        event.stopPropagation();
-        
-        // Запускаем анимацию нажатия кнопки
-        animateButtonPress();
-        
-        playSound('buttonClick', 0.5);
-        
-        if (!isFirstClick) {
-          isFirstClick = true;
-          if (handSprite) {
-            handSprite.visible = false;
-          }
-        }
-        
-        playFunc();
-      });
-      
-      if (isPackshotActive && packshotOverlay && packshotOverlay.parent) {
-        updatePackshotLayout();
-        // Для других ориентаций просто опускаем кнопку
-        soundButtonY = vh - soundButton.height / 2 - padding * 1.5;
-      }
-    }
-    
-    // Дополнительная проверка для очень квадратных разрешений (почти 1:1)
-    if (screenRatio >= 0.9 && screenRatio <= 1.1) {
-      // Для квадратных - кнопка звука в левом нижнем углу, но над самой нижней границей
-      soundButtonX = soundButton.width / 2 + padding;
-      soundButtonY = vh - soundButton.height / 2 - padding * 2;
-    }
-    
-    // Гарантируем, что кнопка звука ниже uiPanel с зазором
-    if (soundButtonTop < uiPanelBottom + 10) {
-      // Если всё ещё пересекается, делаем дополнительный отступ
-      const neededGap = uiPanelBottom + 10 - soundButtonTop;
-      soundButtonY += neededGap;
-    }
-    
-    soundButton.x = soundButtonX;
-    soundButton.y = soundButtonY;
-    
-    // Обработчик клика для кнопки звука
-    soundButton.removeAllListeners();
-    soundButton.on('pointerdown', (event) => {
-      event.stopPropagation();
-      toggleSound();
-    });
   }
   
   multiplierSprites.forEach(sprite => {
@@ -2144,13 +1819,6 @@ function setupElements() {
       packshotOverlay.position.set(0, 0);
       packshotOverlay.scale.set(1);
       app.stage.addChild(packshotOverlay);
-      
-      // Убедимся, что кнопка звука остается видимой
-      if (soundButtonContainer) {
-        // Перемещаем кнопку звука на самый верх
-        app.stage.removeChild(soundButtonContainer);
-        app.stage.addChild(soundButtonContainer);
-      }
       
       function fitFullScreen(sprite) {
         sprite.anchor.set(0);
