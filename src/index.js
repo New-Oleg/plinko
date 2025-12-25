@@ -69,11 +69,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       bigWin: null,
       buttonClick: null,
       balanceChange: null,
+      smsNotification: null,
       magicalWin: null
     };
 
     // Флаг включения/выключения звука
     let isSoundOn = true;
+    
+    // Кнопки звука
+    let soundButton = null;
+    let soundOnTexture = null;
+    let soundOffTexture = null;
+    
+    // Отдельный контейнер для кнопки звука (чтобы была поверх всех элементов)
+    let soundButtonContainer = null;
 
     // Функция инициализации аудио
     function initAudio() {
@@ -84,6 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadSoundFromBase64('bigWin', AUDIO_DATA.bigWin);
         loadSoundFromBase64('buttonClick', AUDIO_DATA.buttonClick);
         loadSoundFromBase64('balanceChange', AUDIO_DATA.balanceChange);
+        loadSoundFromBase64('smsNotification', AUDIO_DATA.smsNotification);
         loadSoundFromBase64('magicalWin', AUDIO_DATA.magicalWin);
         
         console.log('🎵 Аудио система инициализирована (base64)');
@@ -162,6 +172,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           initAudio();
         }
         
+        // Для smsNotification увеличиваем громкость в 2 раза
+        if (soundName === 'smsNotification') {
+          volume = Math.min(volume * 2, 1.0);
+        }
+        
         if (!sounds[soundName] || !(sounds[soundName] instanceof HTMLAudioElement)) {
           console.warn(`⚠️ Звук ${soundName} не загружен, пытаюсь загрузить...`);
           
@@ -206,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Функция для воспроизведения звуков с задержкой
-    async function playSoundsWithDelay(soundName1, soundName2, times = 1, delay = 200) {
+    async function playSoundsWithDelay(soundName1, soundName2, times = 1, delay = 350) {
       if (!isSoundOn) return; // Если звук выключен, не воспроизводим
       
       for (let i = 0; i < times; i++) {
@@ -218,6 +233,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
     
+    // Функция переключения звука
+    function toggleSound() {
+      isSoundOn = !isSoundOn;
+      
+      // Обновляем текстуру кнопки
+      if (soundButton) {
+        soundButton.texture = isSoundOn ? soundOnTexture : soundOffTexture;
+      }
+      
+      // Воспроизводим звук клика (если звук включен)
+      if (isSoundOn) {
+        playSound('buttonClick', 0.3);
+      }
+      
+      console.log(`🔊 Звук ${isSoundOn ? 'включен' : 'выключен'}`);
+    }
+    
     // Создаем объект для управления ресурсами
     const resourceManager = {
       textures: {},
@@ -227,6 +259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           await this.loadAllTexturesFromBase64();
           this.createTextureAliases();
           this.checkEssentialTextures();
+          this.loadSoundTextures(); // Загружаем текстуры кнопок звука
           return this.textures;
         } catch (error) {
           console.error('❌ Ошибка загрузки ресурсов:', error);
@@ -291,6 +324,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       },
 
+      // Загружаем текстуры кнопок звука
+      loadSoundTextures: function() {
+        // Проверяем наличие текстур звука в IMAGE_DATA
+        if (IMAGE_DATA.Sound) {
+          if (IMAGE_DATA.Sound.SoundOFF) {
+            const soundOffBase64 = IMAGE_DATA.Sound.SoundOFF;
+            const imgOff = new Image();
+            imgOff.onload = () => {
+              this.textures['sound_off'] = PIXI.Texture.from(imgOff);
+            };
+            imgOff.src = soundOffBase64;
+          }
+          
+          if (IMAGE_DATA.Sound.SoundOn) {
+            const soundOnBase64 = IMAGE_DATA.Sound.SoundOn;
+            const imgOn = new Image();
+            imgOn.onload = () => {
+              this.textures['sound_on'] = PIXI.Texture.from(imgOn);
+            };
+            imgOn.src = soundOnBase64;
+          }
+        }
+      },
+
       createTextureAliases: function() {
         // ... существующий код создания алиасов ...
         
@@ -342,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         
         const packshotTextures = [
-          'BgDArck', 'BigWinRed', 'Smartphone', 
+          'BgDArck', 'BigWinRed', 'Sms', 'Smartphone', 
           'packshot balls0', 'logo', 'button', 'ph.land', 'ph.port'
         ];
         
@@ -355,6 +412,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const aliasKey = `IMG_${textureName.replace(/\s+/g, '_')}`;
             this.textures[aliasKey] = this.textures[foundKey];
             this.textures[textureName] = this.textures[foundKey];
+            
+            if (textureName === 'Sms') {
+              this.textures['IMG_Sms_Sms_En'] = this.textures[foundKey];
+            }
             
             if (textureName === 'Smartphone') {
               this.textures['IMG_Smartphone_Smartphone_0000'] = this.textures[foundKey];
@@ -506,6 +567,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     gameContainer = new Container();
     app.stage.addChild(gameContainer);
 
+    // Создаем отдельный контейнер для кнопки звука (самый верхний уровень)
+    soundButtonContainer = new Container();
+    soundButtonContainer.sortableChildren = true;
+    soundButtonContainer.zIndex = 1000000; // Самый высокий zIndex
+    app.stage.addChild(soundButtonContainer);
+
     await resourceManager.loadAllResources();
 
     let handTexture;
@@ -562,6 +629,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     uiHidder = new Sprite(uiHidderTex);
     
     handSprite = new Sprite(handTexture);
+    
+    // Загружаем текстуры для кнопки звука
+    soundOnTexture = resourceManager.getTexture('sound_on');
+    soundOffTexture = resourceManager.getTexture('sound_off');
+    
+    // Создаем кнопку звука с начальной текстурой (звук включен)
+    if (!soundOnTexture) {
+      console.warn('⚠️ Текстура sound_on не найдена, создаю заглушку');
+      soundOnTexture = resourceManager.createPlaceholderTexture('sound_on');
+    }
+    
+    if (!soundOffTexture) {
+      console.warn('⚠️ Текстура sound_off не найдена, создаю заглушку');
+      soundOffTexture = resourceManager.createPlaceholderTexture('sound_off');
+    }
+    
+    soundButton = new Sprite(soundOnTexture);
+    soundButton.eventMode = 'static';
+    soundButton.cursor = 'pointer';
+    soundButton.anchor.set(0.5);
+    soundButton.zIndex = 1000; // Высокий zIndex внутри контейнера
+    
+    // Добавляем кнопку в отдельный контейнер
+    soundButtonContainer.addChild(soundButton);
     
     for (let i = 0; i < 10; i++) {
       ballsArray.push(new Sprite(ballTex));
@@ -915,14 +1006,14 @@ function setupElements() {
   }
   uiPanel.scale.set(uiPanelScale);
   
-  // ПОДНИМАЕМ uiPanel ВЫШЕ (освобождаем место для других элементов)
+  // ПОДНИМАЕМ uiPanel ВЫШЕ (освобождаем место для кнопки звука)
   // Для разных разрешений разная высота
   if (isSquare || (isPortrait && screenRatio < 0.7)) {
     // Для квадратных и портретных 9х16 - поднимаем выше
-    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 40);
+    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 60);
   } else {
     // Для остальных случаев
-    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 20);
+    uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 30);
   }
   
   balanceText.anchor.set(0.5);
@@ -1036,6 +1127,251 @@ function setupElements() {
     
     handSprite.visible = !isFirstClick;
     handSprite.zIndex = 100;
+  }
+  
+  // НАСТРАИВАЕМ КНОПКУ ЗВУКА
+  if (soundButton) {
+    soundButton.scale.set(1);
+    
+    // Размер кнопки звука - примерно 1/20 высоты экрана
+    let targetSize = vh / 20;
+    
+    // Уменьшаем размер кнопки звука в квадратных и портретных 9x16 разрешениях
+    if (isSquare || (isPortrait && screenRatio < 0.7)) {
+      targetSize = vh / 20; // Меньше для квадратных и узких портретных
+    }
+    
+    const currentWidth = soundButton.width;
+    const soundButtonScale = targetSize / currentWidth;
+    
+    soundButton.scale.set(soundButtonScale);
+    
+    // Позиционируем в левом нижнем углу с отступами
+    const padding = targetSize * 0.4; // Отступ от краев
+    let soundButtonX = soundButton.width / 2 + padding;
+    let soundButtonY = vh - soundButton.height / 2 - padding;
+    
+    // Проверяем, что кнопка звука не пересекается с uiPanel
+    const uiPanelBottom = uiPanel.y + uiPanel.height / 2;
+    const soundButtonTop = soundButtonY - soundButton.height / 2 + 10;
+    
+    // Если кнопка звука слишком близко к uiPanel, опускаем её ниже
+    // или уменьшаем размер
+    if (soundButtonTop < uiPanelBottom + 5 && isPortrait) {
+      // Для квадратных и портретных 9x16 делаем кнопку меньше и позиционируем точно в угол
+      if (isSquare || (isPortrait && screenRatio < 0.7)) {
+        // Ещё больше уменьшаем размер
+        const smallerSize = vh / 28;
+        const smallerScale = smallerSize / currentWidth;
+        soundButton.scale.set(smallerScale);
+        
+        soundButtonX = soundButton.width / 2 + padding;
+        soundButtonY = vh - soundButton.height / 2 - padding ;
+      } else {
+        uiHidderScale = (vh * 0.15 / uiHidder.height) * 0.5;
+      }
+      uiHidder.scale.set(uiHidderScale);
+      uiHidder.position.set(vw / 2, uiHidder.height / 2 );
+      
+      uiPanel.anchor.set(0.5);
+      uiPanel.scale.set(1);
+      
+      let uiPanelScale;
+      if (isPortrait) {
+        uiPanelScale = vw * 0.9 / uiPanel.width;
+      } else {
+        uiPanelScale = vh * 0.25 / uiPanel.height;
+      }
+      uiPanel.scale.set(uiPanelScale);
+      uiPanel.position.set(vw / 2, vh - uiPanel.height / 2 - 10);
+      
+      balanceText.anchor.set(0.5);
+      
+      // РАЗНЫЙ РАЗМЕР ШРИФТА В ЗАВИСИМОСТИ ОТ СООТНОШЕНИЯ СТОРОН
+      let balanceFontSize;
+      if (isPortrait) {
+        // Для портретной ориентации
+        const baseFontSize = uiHidder.height * 2;
+        balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
+      } else {
+        // Для горизонтальной ориентации
+        const baseFontSize = uiHidder.height * 5;
+        balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
+      }
+      
+      // Ограничиваем минимальный и максимальный размер шрифта
+      const minFontSize = 24;
+      const maxFontSize = 120;
+      balanceFontSize = Math.max(minFontSize, Math.min(balanceFontSize, maxFontSize));
+      
+      balanceText.style.fontSize = balanceFontSize;
+      balanceText.position.set(0, 0);
+      
+      betText.anchor.set(0.5);
+      
+      // Также настраиваем размер шрифта для BET
+      let betFontSize;
+      if (isPortrait) {
+        const baseBetFontSize = uiPanel.height * 0.18;
+        betFontSize = getFontSizeForAspectRatio(baseBetFontSize);
+      } else {
+        const baseBetFontSize = uiPanel.height * 0.18;
+        betFontSize = getFontSizeForAspectRatio(baseBetFontSize);
+      }
+      
+      // Ограничиваем размер шрифта BET
+      const minBetFontSize = 16;
+      const maxBetFontSize = 40;
+      betFontSize = Math.max(minBetFontSize, Math.min(betFontSize, maxBetFontSize));
+      
+      betText.style.fontSize = betFontSize;
+      betText.position.set(0, 0 + 100);
+      
+      field.anchor.set(0.5);
+      
+      const uiHidderBottom = uiHidder.y + uiHidder.height / 2;
+      const uiPanelTop = uiPanel.y - uiPanel.height / 2;
+      const availableHeight = uiPanelTop - uiHidderBottom;
+      const availableWidth = vw * 0.9;
+      
+      const scaleByWidth = availableWidth / fw;
+      const scaleByHeight = availableHeight / fw;
+      
+      let fieldScale = Math.min(scaleByWidth, scaleByHeight);
+      
+      const minScale = 0.3;
+      const maxScale = 1.0;
+      fieldScale = Math.max(minScale, Math.min(fieldScale, maxScale));
+      
+      field.scale.set(fieldScale);
+      
+      const fieldX = vw / 2;
+      const fieldY = uiHidderBottom + availableHeight / 2;
+      
+      field.position.set(fieldX, fieldY);
+      
+      ballsArray.forEach((ballSprite, index) => {
+        ballSprite.anchor.set(0.5);
+        ballSprite.scale.set(0.027 * (1 / fieldScale));
+        ballSprite.visible = false;
+        
+        if (ballPaths[index] && ballPaths[index][0]) {
+          ballSprite.position.set(ballPaths[index][0].x, ballPaths[index][0].y);
+        }
+      });
+      
+      play.anchor.set(0.5);
+      play.scale.set(1);
+      
+      let playScale;
+      if (isPortrait) {
+        playScale = Math.min(vw * 0.25, vh * 0.18) / play.width;
+      } else {
+        playScale = Math.min(vw * 0.2, vh * 0.15) / play.width;
+      }
+      play.scale.set(playScale);
+      
+      let playY;
+      if (isPortrait) {
+        playY = uiPanel.y - uiPanel.height / 2.4 + play.height / 2;
+      } else {
+        playY = vh - play.height * 1.2;
+      }
+      play.position.set(vw / 2, playY);
+      play.eventMode = 'static';
+      play.cursor = 'pointer';
+      
+      if (handSprite) {
+        handSprite.anchor.set(0.5,0.5);
+        handSprite.scale.set(0.6);
+        
+        const handOffsetX = -play.width * 0.1;
+        const handOffsetY = -play.height * 0.1;
+        
+        handSprite.position.set(
+          play.x + play.width / 2 + handOffsetX,
+          play.y + play.height / 2 + handOffsetY
+        );
+        
+        handSprite.visible = !isFirstClick;
+        handSprite.zIndex = 100;
+      }
+      
+      multiplierSprites.forEach(sprite => {
+        if (sprite.userData) {
+          sprite.userData.originalY = sprite.y;
+        }
+      });
+      
+      gameContainer.removeChildren();
+      gameContainer.addChild(bg);
+      gameContainer.addChild(field);
+      gameContainer.addChild(uiHidder);
+      gameContainer.addChild(uiPanel);
+      gameContainer.addChild(play);
+      
+      if (handSprite) {
+        gameContainer.addChild(handSprite);
+      }
+      
+      uiPanel.addChild(betText);
+      uiHidder.addChild(balanceText);
+      
+      ballsArray.forEach(ballSprite => {
+        field.addChild(ballSprite);
+      });
+      
+      setupMultipliers();
+      
+      play.removeAllListeners();
+      play.on('pointerdown', (event) => {
+        event.stopPropagation();
+        
+        // Запускаем анимацию нажатия кнопки
+        animateButtonPress();
+        
+        playSound('buttonClick', 0.5);
+        
+        if (!isFirstClick) {
+          isFirstClick = true;
+          if (handSprite) {
+            handSprite.visible = false;
+          }
+        }
+        
+        playFunc();
+      });
+      
+      if (isPackshotActive && packshotOverlay && packshotOverlay.parent) {
+        updatePackshotLayout();
+        // Для других ориентаций просто опускаем кнопку
+        soundButtonY = vh - soundButton.height / 2 - padding * 1.5;
+      }
+    }
+    
+    // Дополнительная проверка для очень квадратных разрешений (почти 1:1)
+    if (screenRatio >= 0.9 && screenRatio <= 1.1) {
+      // Для квадратных - кнопка звука в левом нижнем углу, но над самой нижней границей
+      soundButtonX = soundButton.width / 2 + padding;
+      soundButtonY = vh - soundButton.height / 2 - padding * 2;
+    }
+    
+    // Гарантируем, что кнопка звука ниже uiPanel с зазором
+    if (soundButtonTop < uiPanelBottom + 10) {
+      // Если всё ещё пересекается, делаем дополнительный отступ
+      const neededGap = uiPanelBottom + 10 - soundButtonTop;
+      soundButtonY += neededGap;
+    }
+    
+    soundButton.x = soundButtonX;
+    soundButton.y = soundButtonY;
+    
+    // Обработчик клика для кнопки звука
+    soundButton.removeAllListeners();
+    soundButton.on('pointerdown', (event) => {
+      event.stopPropagation();
+      toggleSound();
+    });
   }
   
   multiplierSprites.forEach(sprite => {
@@ -1337,7 +1673,7 @@ function setupElements() {
       }, 200);
     }
 
-    // ============ ФУНКЦИИ ПЭКШОТА (БЕЗ SMS) ============
+    // ============ ФУНКЦИИ ПЭКШОТА ============
     
     function normKeyPart(s) {
       return s.replace(/\s+/g, "_").replace(/[^\w.]/g, "");
@@ -1492,197 +1828,246 @@ function setupElements() {
       }
     }
     
-    function updateInitialPackshotAnimation(vw, vh) {
-      if (!packshotOverlay) return;
+function updateInitialPackshotAnimation(vw, vh) {
+  if (!packshotOverlay) return;
+  
+  const isLandscape = vw > vh;
+  const currentScreenRatio = vw / vh;
+  
+  const bgDark = packshotElements['bgDark'];
+  if (bgDark) {
+    bgDark.width = vw;
+    bgDark.height = vh;
+  }
+  
+  const bgDark2 = packshotElements['bgDark2'];
+  if (bgDark2) {
+    bgDark2.width = vw;
+    bgDark2.height = vh;
+  }
+  
+  if (uiHidder.parent === packshotOverlay) {
+    checkOrientation();
+    
+    let uiHidderScale;
+    if (isPortrait) {
+      uiHidderScale = (vw * 0.9 / uiHidder.texture.width) * 0.5;
+    } else {
+      uiHidderScale = (vh * 0.5 / uiHidder.texture.height) * 0.5;
+    }
+    uiHidder.scale.set(uiHidderScale);
+    
+    uiHidder.position.set(vw / 2, uiHidder.height / 2 + 10);
+    
+    // ОБНОВЛЯЕМ РАЗМЕР СЧЕТЧИКА В ЗАВИСИМОСТИ ОТ СООТНОШЕНИЯ СТОРОН
+    let balanceFontSize;
+    if (isPortrait) {
+      const baseFontSize = uiHidder.height * 2;
+      balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
+    } else {
+      const baseFontSize = uiHidder.height * 5;
+      balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
+    }
+    
+    const minFontSize = 24;
+    const maxFontSize = 120;
+    balanceFontSize = Math.max(minFontSize, Math.min(balanceFontSize, maxFontSize));
+    
+    balanceText.style.fontSize = balanceFontSize;
+    
+    balanceText.anchor.set(0.5);
+    balanceText.x = 0;
+    balanceText.y = 0;
+  }
+  
+  const bigWin = packshotElements['bigWin'];
+  if (bigWin) {
+    bigWin.anchor.set(0.5);
+    
+    if (isLandscape) {
+      const maxWidth = vw * 0.3;
+      const maxHeight = vh * 0.4;
+      const scaleByWidth = maxWidth / bigWin.texture.width;
+      const scaleByHeight = maxHeight / bigWin.texture.height;
+      const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
       
-      const isLandscape = vw > vh;
-      const currentScreenRatio = vw / vh;
+      bigWin.scale.set(bigWinTargetScale);
+      bigWin.x = vw / 2;
+      bigWin.y = vh / 2;
+    } else {
+      const maxWidth = vw * 0.8;
+      const maxHeight = vh * 0.6;
+      const scaleByWidth = maxWidth / bigWin.texture.width;
+      const scaleByHeight = maxHeight / bigWin.texture.height;
+      const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
       
-      const bgDark = packshotElements['bgDark'];
-      if (bgDark) {
-        bgDark.width = vw;
-        bgDark.height = vh;
-      }
+      bigWin.scale.set(bigWinTargetScale);
+      bigWin.x = vw / 2;
+      bigWin.y = vh / 2;
+    }
+  }
+  
+  const coinsAnim = packshotElements['coinsAnim'];
+  if (coinsAnim) {
+    coinsAnim.anchor.set(0.5);
+    coinsAnim.x = vw / 2;
+    
+    if (isLandscape) {
+      const coinsMaxWidth = vw * 0.6;
+      const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8;
+      coinsAnim.scale.set(coinsScale);
       
-      const bgDark2 = packshotElements['bgDark2'];
-      if (bgDark2) {
-        bgDark2.width = vw;
-        bgDark2.height = vh;
-      }
-      
-      if (uiHidder.parent === packshotOverlay) {
-        checkOrientation();
-        
-        let uiHidderScale;
-        if (isPortrait) {
-          uiHidderScale = (vw * 0.9 / uiHidder.texture.width) * 0.5;
-        } else {
-          uiHidderScale = (vh * 0.15 / uiHidder.texture.height) * 0.5;
-        }
-        uiHidder.scale.set(uiHidderScale);
-        
-        uiHidder.position.set(vw / 2, uiHidder.height / 2 + 10);
-        
-        // ОБНОВЛЯЕМ РАЗМЕР СЧЕТЧИКА В ЗАВИСИМОСТИ ОТ СООТНОШЕНИЯ СТОРОН
-        let balanceFontSize;
-        if (isPortrait) {
-          const baseFontSize = uiHidder.height * 2;
-          balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
-        } else {
-          const baseFontSize = uiHidder.height * 5;
-          balanceFontSize = getFontSizeForAspectRatio(baseFontSize);
-        }
-        
-        const minFontSize = 24;
-        const maxFontSize = 120;
-        balanceFontSize = Math.max(minFontSize, Math.min(balanceFontSize, maxFontSize));
-        
-        balanceText.style.fontSize = balanceFontSize;
-        
-        balanceText.anchor.set(0.5);
-        balanceText.x = 0;
-        balanceText.y = 0;
-      }
-      
-      const bigWin = packshotElements['bigWin'];
       if (bigWin) {
-        bigWin.anchor.set(0.5);
-        
-        if (isLandscape) {
-          const maxWidth = vw * 0.3;
-          const maxHeight = vh * 0.4;
-          const scaleByWidth = maxWidth / bigWin.texture.width;
-          const scaleByHeight = maxHeight / bigWin.texture.height;
-          const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
-          
-          bigWin.scale.set(bigWinTargetScale);
-          bigWin.x = vw / 2;
-          bigWin.y = vh * 0.3;
-        } else {
-          const maxWidth = vw * 0.8;
-          const maxHeight = vh * 0.6;
-          const scaleByWidth = maxWidth / bigWin.texture.width;
-          const scaleByHeight = maxHeight / bigWin.texture.height;
-          const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
-          
-          bigWin.scale.set(bigWinTargetScale);
-          bigWin.x = vw / 2;
-          bigWin.y = vh / 2;
-        }
-      }
-      
-      const coinsAnim = packshotElements['coinsAnim'];
-      if (coinsAnim) {
-        coinsAnim.anchor.set(0.5);
-        coinsAnim.x = vw / 2;
-        
-        if (isLandscape) {
-          const coinsMaxWidth = vw * 0.6;
-          const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8;
-          coinsAnim.scale.set(coinsScale);
-          
-          if (bigWin) {
-            coinsAnim.y = bigWin.y + bigWin.height * 0.8;
-          } else {
-            coinsAnim.y = vh * 0.6;
-          }
-        } else {
-          const coinsMaxWidth = vw * 1.0;
-          const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8 * 3;
-          coinsAnim.scale.set(coinsScale);
-          
-          if (bigWin) {
-            coinsAnim.y = bigWin.y + bigWin.height * 0.6;
-          } else {
-            coinsAnim.y = vh * 0.6;
-          }
-        }
-      }
-      
-      const phone = packshotElements['phone'];
-      const phoneAnim = packshotElements['phoneAnim'];
-      
-      if (phone) {
-        phone.anchor.set(0.5);
-        
-        if (isLandscape) {
-          const maxWidth = vw * 0.5;
-          const maxHeight = vh * 0.7;
-          const scaleByWidth = maxWidth / phone.texture.width;
-          const scaleByHeight = maxHeight / phone.texture.height;
-          const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-          
-          phone.scale.set(phoneTargetScale);
-          phone.x = vw / 2;
-          phone.y = vh / 2;
-        } else {
-          const maxWidth = vw * 0.6;
-          const maxHeight = vh * 0.8;
-          const scaleByWidth = maxWidth / phone.texture.width;
-          const scaleByHeight = maxHeight / phone.texture.height;
-          const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-          
-          phone.scale.set(phoneTargetScale);
-          phone.x = vw / 2;
-          phone.y = vh / 2;
-        }
-      }
-      
-      if (phoneAnim) {
-        phoneAnim.anchor.set(0.5);
-        
-        if (isLandscape) {
-          const maxWidth = vw * 0.5;
-          const maxHeight = vh * 0.7;
-          const scaleByWidth = maxWidth / phoneAnim.texture.width;
-          const scaleByHeight = maxHeight / phoneAnim.texture.height;
-          const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-          
-          phoneAnim.scale.set(phoneTargetScale);
-          phoneAnim.x = vw / 2;
-          phoneAnim.y = vh / 2;
-        } else {
-          const maxWidth = vw * 0.6;
-          const maxHeight = vh * 0.8;
-          const scaleByWidth = maxWidth / phoneAnim.texture.width;
-          const scaleByHeight = maxHeight / phoneAnim.texture.height;
-          const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-          
-          phoneAnim.scale.set(phoneTargetScale);
-          phoneAnim.x = vw / 2;
-          phoneAnim.y = vh / 2;
-        }
-      }
-    }
-    
-    function triggerSDKDownload() {
-      if (typeof sdk !== 'undefined' && sdk.install) {
-        sdk.install();
-      } 
-      else if (window.sdk?.download) {
-        window.sdk.download();
-      } else if (window.sdk?.openStore) {
-        window.sdk.openStore();
-      } else if (window.mraid?.open) {
-        window.mraid.open();
-      } else if (window.CTAsdk?.install) {
-        window.CTAsdk.install();
-      } else if (window.fbPlayableAd?.onCTAClick) {
-        window.fbPlayableAd.onCTAClick();
+        coinsAnim.y = bigWin.y + bigWin.height * 0.8;
       } else {
-        console.warn("No SDK found for download handling");
-        
-        const googlePlayUrl = "https://play.google.com/store/apps/details?id=com.example";
-        const appStoreUrl = "https://apps.apple.com/app/id123456789";
-        
-        const isAndroid = /Android/.test(navigator.userAgent);
-        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        
-        const url = isAndroid ? googlePlayUrl : (isIOS ? appStoreUrl : googlePlayUrl);
-        window.open(url, '_blank');
+        coinsAnim.y = vh * 0.6;
+      }
+    } else {
+      const coinsMaxWidth = vw * 1.0;
+      const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8 * 2;
+      coinsAnim.scale.set(coinsScale);
+      
+      // ВЕРТИКАЛЬНЫЙ РЕЖИМ: поднимаем на 35% выше (5% + 30%)
+      if (bigWin) {
+        coinsAnim.y = bigWin.y + bigWin.height * 0.25; // Было 0.6, потом 0.55, теперь 0.25
+      } else {
+        coinsAnim.y = vh * 0.25; // Было 0.6, потом 0.55, теперь 0.25
       }
     }
+  }
+  
+  const sms = packshotElements['sms'];
+  if (sms) {
+    sms.anchor.set(0.5);
     
+    if (isLandscape) {
+      const maxWidth = vw * 0.4;
+      const maxHeight = vh * 0.3;
+      const scaleByWidth = maxWidth / sms.texture.width;
+      const scaleByHeight = maxHeight / sms.texture.height;
+      const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
+      
+      sms.scale.set(smsTargetScale);
+      sms.x = vw / 2;
+      sms.y = vh * 0.7;
+    } else {
+      const maxWidth = vw * 0.9;
+      const maxHeight = vh * 0.7;
+      const scaleByWidth = maxWidth / sms.texture.width;
+      const scaleByHeight = maxHeight / sms.texture.height;
+      const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
+      
+      sms.scale.set(smsTargetScale);
+      sms.x = vw / 2;
+      sms.y = vh * 0.15;
+    }
+  }
+  
+  const phone = packshotElements['phone'];
+  const phoneAnim = packshotElements['phoneAnim'];
+  
+  if (phone) {
+    phone.anchor.set(0.5);
+    
+    if (isLandscape) {
+      const maxWidth = vw * 0.5;
+      const maxHeight = vh * 0.7;
+      const scaleByWidth = maxWidth / phone.texture.width;
+      const scaleByHeight = maxHeight / phone.texture.height;
+      const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+      
+      phone.scale.set(phoneTargetScale);
+      phone.x = vw / 2;
+      phone.y = vh / 2;
+    } else {
+      const maxWidth = vw * 0.6;
+      const maxHeight = vh * 0.8;
+      const scaleByWidth = maxWidth / phone.texture.width;
+      const scaleByHeight = maxHeight / phone.texture.height;
+      const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+      
+      phone.scale.set(phoneTargetScale);
+      phone.x = vw / 2;
+      phone.y = vh / 2;
+    }
+  }
+  
+  if (phoneAnim) {
+    phoneAnim.anchor.set(0.5);
+    
+    if (isLandscape) {
+      const maxWidth = vw * 0.5;
+      const maxHeight = vh * 0.7;
+      const scaleByWidth = maxWidth / phoneAnim.texture.width;
+      const scaleByHeight = maxHeight / phoneAnim.texture.height;
+      const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+      
+      phoneAnim.scale.set(phoneTargetScale);
+      phoneAnim.x = vw / 2;
+      phoneAnim.y = vh / 2;
+    } else {
+      const maxWidth = vw * 0.6;
+      const maxHeight = vh * 0.8;
+      const scaleByWidth = maxWidth / phoneAnim.texture.width;
+      const scaleByHeight = maxHeight / phoneAnim.texture.height;
+      const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+      
+      phoneAnim.scale.set(phoneTargetScale);
+      phoneAnim.x = vw / 2;
+      phoneAnim.y = vh / 2;
+    }
+  }
+}
+    
+function triggerSDKDownload() {
+  // Получаем ссылки из глобальных констант, заданных при сборке
+  const googlePlayUrl = typeof GOOGLE_PLAY_URL !== 'undefined' ? GOOGLE_PLAY_URL : '';
+  const appStoreUrl = typeof APP_STORE_URL !== 'undefined' ? APP_STORE_URL : '';
+  
+  // Проверяем, есть ли хотя бы одна ссылка
+  const hasValidUrls = googlePlayUrl.trim() || appStoreUrl.trim();
+  
+  if (!hasValidUrls) {
+    console.warn("Store URLs are empty, skipping download/redirect");
+    return; // Ничего не делаем, если ссылки пустые
+  }
+  
+  // Если ссылки есть, продолжаем обычную логику
+  if (typeof sdk !== 'undefined' && sdk.install) {
+    sdk.install();
+  } 
+  else if (window.sdk?.download) {
+    window.sdk.download();
+  } else if (window.sdk?.openStore) {
+    window.sdk.openStore();
+  } else if (window.mraid?.open) {
+    window.mraid.open();
+  } else if (window.CTAsdk?.install) {
+    window.CTAsdk.install();
+  } else if (window.fbPlayableAd?.onCTAClick) {
+    window.fbPlayableAd.onCTAClick();
+  } else {
+    console.warn("No SDK found for download handling");
+    
+    // Fallback логика с проверкой ссылок
+    const isAndroid = /Android/.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    
+    let url;
+    if (isAndroid && googlePlayUrl) {
+      url = googlePlayUrl;
+    } else if (isIOS && appStoreUrl) {
+      url = appStoreUrl;
+    } else {
+      url = googlePlayUrl || appStoreUrl;
+    }
+    
+    if (url) {
+      window.open(url, '_blank');
+    }
+  }
+}
+
     function updateFinalPackshotLayout(vw, vh) {
       if (!packshotLayer) return;
       
@@ -1706,34 +2091,6 @@ function setupElements() {
     async function showFinalPackshot(app, overlay, vw, vh) {
       currentPackshotStage = 'final';
       
-      if (packshotElements['coinsAnim']) {
-        const coinsAnim = packshotElements['coinsAnim'];
-        coinsAnim.stop();
-        if (coinsAnim.parent) {
-          overlay.removeChild(coinsAnim);
-        }
-        delete packshotElements['coinsAnim'];
-      }
-      
-      if (packshotElements['uiHidderOriginalParent']) {
-        overlay.removeChild(uiHidder);
-        packshotElements['uiHidderOriginalParent'].addChildAt(
-          uiHidder, 
-          packshotElements['uiHidderOriginalIndex']
-        );
-        uiHidder.x = packshotElements['uiHidderOriginalPosition'].x;
-        uiHidder.y = packshotElements['uiHidderOriginalPosition'].y;
-      }
-      
-      overlay.children.forEach(child => {
-        if (child !== packshotLayer) {
-          child.visible = false;
-        }
-      });
-      
-      if (packshotLayer && packshotLayer.parent) {
-        overlay.removeChild(packshotLayer);
-      }
       
       packshotLayer = new Container();
       packshotLayer.sortableChildren = true;
@@ -1745,45 +2102,7 @@ function setupElements() {
       const orientationKey = isLandscape ? 'ph.land' : 'ph.port';
       
       let packshotTexture = resourceManager.getTexture(orientationKey);
-      
-      if (!packshotTexture) {
-        console.warn(`⚠️ Текстура ${orientationKey} не найдена, создаю заглушку`);
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = 800;
-        canvas.height = isLandscape ? 450 : 800;
-        const ctx = canvas.getContext('2d');
-        
-        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-        gradient.addColorStop(0, '#6a2b7a');
-        gradient.addColorStop(1, '#9b4dca');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 40px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        if (isLandscape) {
-          ctx.fillText('PH.LAND', canvas.width / 2, canvas.height / 2 - 50);
-          ctx.font = '25px Arial';
-          ctx.fillText('Альбомная ориентация', canvas.width / 2, canvas.height / 2);
-          ctx.fillText(`${vw}x${vh}`, canvas.width / 2, canvas.height / 2 + 50);
-        } else {
-          ctx.fillText('PH.PORT', canvas.width / 2, canvas.height / 2 - 50);
-          ctx.font = '25px Arial';
-          ctx.fillText('Портретная ориентация', canvas.width / 2, canvas.height / 2);
-          ctx.fillText(`${vw}x${vh}`, canvas.width / 2, canvas.height / 2 + 50);
-        }
-        
-        ctx.fillStyle = '#FFCC00';
-        ctx.font = 'bold 30px Arial';
-        ctx.fillText('Кликни для загрузки', canvas.width / 2, canvas.height - 100);
-        
-        packshotTexture = PIXI.Texture.from(canvas);
-      }
-      
+     
       const packshotSprite = new Sprite(packshotTexture);
       packshotSprite.anchor.set(0);
       packshotSprite.width = vw;
@@ -1805,247 +2124,305 @@ function setupElements() {
       await tweenValue(app, packshotLayer, "alpha", 0, 1, 500);
     }
     
-    async function startPackshotSequence(app) {
-      const vw = app.renderer.width;
-      const vh = app.renderer.height;
-      
-      isPackshotActive = true;
-      currentPackshotStage = 'initial';
-      packshotElements = {};
-      
-      packshotOverlay = new Container();
-      packshotOverlay.sortableChildren = true;
-      packshotOverlay.zIndex = 99999;
-      packshotOverlay.position.set(0, 0);
-      packshotOverlay.scale.set(1);
-      app.stage.addChild(packshotOverlay);
-      
-      function fitFullScreen(sprite) {
-        sprite.anchor.set(0);
-        sprite.x = 0;
-        sprite.y = 0;
-        sprite.width = vw;
-        sprite.height = vh;
-      }
-      
-      const bgDark = await loadSprite(buildKey("IMG", "BgDArck"));
-      fitFullScreen(bgDark);
-      bgDark.alpha = 0;
-      bgDark.zIndex = 0;
-      bgDark.name = 'bgDark';
-      packshotOverlay.addChild(bgDark);
-      packshotElements['bgDark'] = bgDark;
-      
-      packshotElements['uiHidderOriginalParent'] = uiHidder.parent;
-      packshotElements['uiHidderOriginalIndex'] = uiHidder.parent.getChildIndex(uiHidder);
-      packshotElements['uiHidderOriginalPosition'] = { x: uiHidder.x, y: uiHidder.y };
-      
-      gameContainer.removeChild(uiHidder);
-      packshotOverlay.addChild(uiHidder);
-      
-      uiHidder.x = packshotElements['uiHidderOriginalPosition'].x;
-      uiHidder.y = packshotElements['uiHidderOriginalPosition'].y;
-      uiHidder.zIndex = 2;
-      uiHidder.name = 'uiHidderOriginal';
-      
-      const bigWin = await loadSprite(buildKey("IMG", "BigWinRed"));
-      bigWin.anchor.set(0.5);
-      
-      const isLandscape = vw > vh;
-      
-      if (isLandscape) {
-        const maxWidth = vw * 0.3;
-        const maxHeight = vh * 0.4;
-        const scaleByWidth = maxWidth / bigWin.texture.width;
-        const scaleByHeight = maxHeight / bigWin.texture.height;
-        const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
-        
-        bigWin.scale.set(0);
-        bigWin.x = vw / 2;
-        bigWin.y = vh * 0.3;
-      } else {
-        const maxWidth = vw * 0.8;
-        const maxHeight = vh * 0.6;
-        const scaleByWidth = maxWidth / bigWin.texture.width;
-        const scaleByHeight = maxHeight / bigWin.texture.height;
-        const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
-        
-        bigWin.scale.set(0);
-        bigWin.x = vw / 2;
-        bigWin.y = vh / 2;
-      }
-      
-      bigWin.zIndex = 3;
-      bigWin.name = 'bigWin';
-      packshotOverlay.addChild(bigWin);
-      packshotElements['bigWin'] = bigWin;
-      
-      const coinTextures = await loadCoinsTextures();
-      
-      if (coinTextures.length > 0) {
-        const coinsAnim = new PIXI.AnimatedSprite(coinTextures);
-        coinsAnim.anchor.set(0.5);
-        coinsAnim.x = vw / 2;
-        
-        if (isLandscape) {
-          const coinsMaxWidth = vw * 0.6;
-          const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8;
-          coinsAnim.scale.set(coinsScale);
-          coinsAnim.y = vh * 0.6;
-        } else {
-          const coinsMaxWidth = vw * 1.0;
-          const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8 * 3;
-          coinsAnim.scale.set(coinsScale);
-          coinsAnim.y = vh * 0.6;
-        }
-        
-        coinsAnim.loop = true;
-        coinsAnim.animationSpeed = 0.25;
-        coinsAnim.play();
-        coinsAnim.zIndex = 2.5;
-        coinsAnim.name = 'coinsAnim';
-        coinsAnim.alpha = 0;
-        
-        packshotOverlay.addChild(coinsAnim);
-        packshotElements['coinsAnim'] = coinsAnim;
-      } 
-
-      const bgDark2 = await loadSprite(buildKey("IMG", "BgDArck"));
-      fitFullScreen(bgDark2);
-      bgDark2.alpha = 0;
-      bgDark2.zIndex = 15;
-      bgDark2.name = 'bgDark2';
-      packshotOverlay.addChild(bgDark2);
-      packshotElements['bgDark2'] = bgDark2;
-      
-      const phone = await loadSprite(buildKey("IMG", "Smartphone", "Smartphone_0000"));
-      phone.anchor.set(0.5);
-      
-      if (isLandscape) {
-        const maxWidth = vw * 0.5;
-        const maxHeight = vh * 0.7;
-        const scaleByWidth = maxWidth / phone.texture.width;
-        const scaleByHeight = maxHeight / phone.texture.height;
-        const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-        
-        phone.scale.set(phoneTargetScale);
-        phone.x = vw + phone.width;
-        phone.y = vh / 2;
-      } else {
-        const maxWidth = vw * 0.6;
-        const maxHeight = vh * 0.8;
-        const scaleByWidth = maxWidth / phone.texture.width;
-        const scaleByHeight = maxHeight / phone.texture.height;
-        const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-        
-        phone.scale.set(phoneTargetScale);
-        phone.x = vw + phone.width;
-        phone.y = vh / 2;
-      }
-      
-      phone.zIndex = 16;
-      phone.name = 'phone';
-      packshotOverlay.addChild(phone);
-      packshotElements['phone'] = phone;
-      
-      await tweenValue(app, bgDark, "alpha", 0, 1, 300);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      let bigWinTargetScale;
-      if (isLandscape) {
-        const maxWidth = vw * 0.3;
-        const maxHeight = vh * 0.4;
-        const scaleByWidth = maxWidth / bigWin.texture.width;
-        const scaleByHeight = maxHeight / bigWin.texture.height;
-        bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
-      } else {
-        const maxWidth = vw * 0.8;
-        const maxHeight = vh * 0.6;
-        const scaleByWidth = maxWidth / bigWin.texture.width;
-        const scaleByHeight = maxHeight / bigWin.texture.height;
-        bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
-      }
-      
-      await tweenScale(app, bigWin, 0, bigWinTargetScale, 400);
-      playSound('bigWin', 0.7);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (packshotElements['coinsAnim']) {
-        const coinsAnim = packshotElements['coinsAnim'];
-        if (isLandscape) {
-          coinsAnim.y = bigWin.y + bigWin.height * 0.8;
-        } else {
-          coinsAnim.y = bigWin.y + bigWin.height * 0.6;
-        }
-        await tweenValue(app, coinsAnim, "alpha", 0, 1, 300);
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      // Пропускаем SMS этап и сразу переходим к затемнению и телефону
-      await tweenValue(app, bgDark2, "alpha", 0, 1, 300);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const phoneTargetX = vw / 2;
-      const phoneTargetY = vh / 2;
-      
-      await tweenPosition(app, phone, { x: phoneTargetX, y: phoneTargetY }, 500);
-      
-      const phoneTextures = await loadPhoneTextures();
-      
-      if (phoneTextures.length > 0) {
-        const phoneAnim = new PIXI.AnimatedSprite(phoneTextures);
-        phoneAnim.anchor.set(0.5);
-        phoneAnim.x = vw / 2;
-        phoneAnim.y = vh / 2;
-        
-        if (isLandscape) {
-          const maxWidth = vw * 0.5;
-          const maxHeight = vh * 0.7;
-          const scaleByWidth = maxWidth / phoneAnim.texture.width;
-          const scaleByHeight = maxHeight / phoneAnim.texture.height;
-          const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-          phoneAnim.scale.set(phoneTargetScale);
-        } else {
-          const maxWidth = vw * 0.6;
-          const maxHeight = vh * 0.8;
-          const scaleByWidth = maxWidth / phoneAnim.texture.width;
-          const scaleByHeight = maxHeight / phoneAnim.texture.height;
-          const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
-          phoneAnim.scale.set(phoneTargetScale);
-        }
-        
-        phoneAnim.loop = false;
-        phoneAnim.animationSpeed = 0.5;
-        phoneAnim.zIndex = 17;
-        phoneAnim.name = 'phoneAnim';
-        
-        packshotOverlay.removeChild(phone);
-        delete packshotElements['phone'];
-        packshotOverlay.addChild(phoneAnim);
-        packshotElements['phoneAnim'] = phoneAnim;
-        
-        phoneAnim.play();
-        
-        // Воспроизводим звуки без SMS уведомления
-        playSoundsWithDelay('buttonClick', 'buttonClick', 5, 200);
-        
-        await new Promise(r => setTimeout(r, 5500));
-        
-        if (phoneAnim.parent) {
-          packshotOverlay.removeChild(phoneAnim);
-          delete packshotElements['phoneAnim'];
-        }
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      await showFinalPackshot(app, packshotOverlay, vw, vh);
+async function startPackshotSequence(app) {
+  const vw = app.renderer.width;
+  const vh = app.renderer.height;
+  
+  isPackshotActive = true;
+  currentPackshotStage = 'initial';
+  packshotElements = {};
+  
+  packshotOverlay = new Container();
+  packshotOverlay.sortableChildren = true;
+  packshotOverlay.zIndex = 99999;
+  packshotOverlay.position.set(0, 0);
+  packshotOverlay.scale.set(1);
+  app.stage.addChild(packshotOverlay);
+  
+  // Убедимся, что кнопка звука остается видимой
+  if (soundButtonContainer) {
+    // Перемещаем кнопку звука на самый верх
+    app.stage.removeChild(soundButtonContainer);
+    app.stage.addChild(soundButtonContainer);
+  }
+  
+  function fitFullScreen(sprite) {
+    sprite.anchor.set(0);
+    sprite.x = 0;
+    sprite.y = 0;
+    sprite.width = vw;
+    sprite.height = vh;
+  }
+  
+  const bgDark = await loadSprite(buildKey("IMG", "BgDArck"));
+  fitFullScreen(bgDark);
+  bgDark.alpha = 0;
+  bgDark.zIndex = 0;
+  bgDark.name = 'bgDark';
+  packshotOverlay.addChild(bgDark);
+  packshotElements['bgDark'] = bgDark;
+  
+  packshotElements['uiHidderOriginalParent'] = uiHidder.parent;
+  packshotElements['uiHidderOriginalIndex'] = uiHidder.parent.getChildIndex(uiHidder);
+  packshotElements['uiHidderOriginalPosition'] = { x: uiHidder.x, y: uiHidder.y };
+  
+  gameContainer.removeChild(uiHidder);
+  packshotOverlay.addChild(uiHidder);
+  
+  uiHidder.x = packshotElements['uiHidderOriginalPosition'].x;
+  uiHidder.y = packshotElements['uiHidderOriginalPosition'].y;
+  uiHidder.zIndex = 2;
+  uiHidder.name = 'uiHidderOriginal';
+  
+  const bigWin = await loadSprite(buildKey("IMG", "BigWinRed"));
+  bigWin.anchor.set(0.5);
+  
+  const isLandscape = vw > vh;
+  
+  if (isLandscape) {
+    const maxWidth = vw * 0.3;
+    const maxHeight = vh * 0.4;
+    const scaleByWidth = maxWidth / bigWin.texture.width;
+    const scaleByHeight = maxHeight / bigWin.texture.height;
+    const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
+    
+    bigWin.scale.set(0);
+    bigWin.x = vw / 2;
+    bigWin.y = vh / 2;
+  } else {
+    const maxWidth = vw * 0.8;
+    const maxHeight = vh * 0.6;
+    const scaleByWidth = maxWidth / bigWin.texture.width;
+    const scaleByHeight = maxHeight / bigWin.texture.height;
+    const bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
+    
+    bigWin.scale.set(0);
+    bigWin.x = vw / 2;
+    bigWin.y = vh / 2;
+  }
+  
+  bigWin.zIndex = 3;
+  bigWin.name = 'bigWin';
+  packshotOverlay.addChild(bigWin);
+  packshotElements['bigWin'] = bigWin;
+  
+  const coinTextures = await loadCoinsTextures();
+  
+  if (coinTextures.length > 0) {
+    const coinsAnim = new PIXI.AnimatedSprite(coinTextures);
+    coinsAnim.anchor.set(0.5);
+    coinsAnim.x = vw / 2;
+    
+    if (isLandscape) {
+      const coinsMaxWidth = vw * 0.9;
+      const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8;
+      coinsAnim.scale.set(coinsScale);
+      coinsAnim.y = vh * 0.6;
+    } else {
+      const coinsMaxWidth = vw * 1.2;
+      const coinsScale = (coinsMaxWidth / coinsAnim.texture.width) * 0.8 * 2;
+      coinsAnim.scale.set(coinsScale);
+      coinsAnim.y = vh * 0.6;
     }
     
+    coinsAnim.loop = true;
+    coinsAnim.animationSpeed = 0.2;
+    coinsAnim.zIndex = 2.5;
+    coinsAnim.name = 'coinsAnim';
+    coinsAnim.alpha = 0; // Начинаем с невидимого
+    
+    packshotOverlay.addChild(coinsAnim);
+    packshotElements['coinsAnim'] = coinsAnim;
+  } 
+
+  const sms = await loadSprite(buildKey("IMG", "Sms", "Sms_En"));
+  sms.anchor.set(0.5);
+  
+  if (isLandscape) {
+    const maxWidth = vw * 0.4;
+    const maxHeight = vh * 0.3;
+    const scaleByWidth = maxWidth / sms.texture.width;
+    const scaleByHeight = maxHeight / sms.texture.height;
+    const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
+    
+    sms.scale.set(smsTargetScale);
+    sms.x = vw / 2;
+    sms.y = -sms.height;
+  } else {
+    const maxWidth = vw * 0.9;
+    const maxHeight = vh * 0.7;
+    const scaleByWidth = maxWidth / sms.texture.width;
+    const scaleByHeight = maxHeight / sms.texture.height;
+    const smsTargetScale = Math.min(scaleByWidth, scaleByHeight);
+    
+    sms.scale.set(smsTargetScale);
+    sms.x = vw / 2;
+    sms.y = -sms.height;
+  }
+  
+  sms.zIndex = 4;
+  sms.name = 'sms';
+  packshotOverlay.addChild(sms);
+  packshotElements['sms'] = sms;
+  
+  const bgDark2 = await loadSprite(buildKey("IMG", "BgDArck"));
+  fitFullScreen(bgDark2);
+  bgDark2.alpha = 0;
+  bgDark2.zIndex = 15;
+  bgDark2.name = 'bgDark2';
+  packshotOverlay.addChild(bgDark2);
+  packshotElements['bgDark2'] = bgDark2;
+  
+  const phone = await loadSprite(buildKey("IMG", "Smartphone", "Smartphone_0000"));
+  phone.anchor.set(0.5);
+  
+  if (isLandscape) {
+    const maxWidth = vw * 0.5;
+    const maxHeight = vh * 0.7;
+    const scaleByWidth = maxWidth / phone.texture.width;
+    const scaleByHeight = maxHeight / phone.texture.height;
+    const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+    
+    phone.scale.set(phoneTargetScale);
+    phone.x = vw + phone.width;
+    phone.y = vh / 2;
+  } else {
+    const maxWidth = vw * 0.6;
+    const maxHeight = vh * 0.8;
+    const scaleByWidth = maxWidth / phone.texture.width;
+    const scaleByHeight = maxHeight / phone.texture.height;
+    const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+    
+    phone.scale.set(phoneTargetScale);
+    phone.x = vw + phone.width;
+    phone.y = vh / 2;
+  }
+  
+  phone.zIndex = 16;
+  phone.name = 'phone';
+  packshotOverlay.addChild(phone);
+  packshotElements['phone'] = phone;
+  
+  await tweenValue(app, bgDark, "alpha", 0, 1, 300);
+  
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  let bigWinTargetScale;
+  if (isLandscape) {
+    const maxWidth = vw * 0.3;
+    const maxHeight = vh * 0.4;
+    const scaleByWidth = maxWidth / bigWin.texture.width;
+    const scaleByHeight = maxHeight / bigWin.texture.height;
+    bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
+  } else {
+    const maxWidth = vw * 0.8;
+    const maxHeight = vh * 0.6;
+    const scaleByWidth = maxWidth / bigWin.texture.width;
+    const scaleByHeight = maxHeight / bigWin.texture.height;
+    bigWinTargetScale = Math.min(scaleByWidth, scaleByHeight);
+  }
+  
+  const coinsAnim = packshotElements['coinsAnim'];
+  
+  // Сначала устанавливаем позицию coinsAnim относительно BIGWin
+  if (coinsAnim) {
+    if (isLandscape) {
+      coinsAnim.y = bigWin.y + (bigWin.texture.height * bigWinTargetScale) * -0.8;
+    } else {
+       coinsAnim.y = bigWin.y + (bigWin.texture.height * bigWinTargetScale) * -1.2;
+    }
+  }
+  
+  // Запускаем обе анимации одновременно
+  const animationPromises = [
+    tweenScale(app, bigWin, 0, bigWinTargetScale, 400)
+  ];
+  
+  if (coinsAnim) {
+    // Начинаем воспроизведение анимации монет
+    coinsAnim.play();
+    animationPromises.push(tweenValue(app, coinsAnim, "alpha", 0, 1, 400));
+  }
+  
+  playSound('bigWin', 0.7);
+  
+  // Ждем завершения обеих анимаций
+  //await Promise.all(animationPromises);
+  
+  // Задержка после анимации BIGWin и coinsAnim
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Далее продолжается существующий код...
+  let smsTargetY;
+  if (isLandscape) {
+    smsTargetY = vh * 0.15;
+  } else {
+    smsTargetY = vh * 0.15;
+  }
+  
+  await tweenPosition(app, sms, { x: vw / 2, y: smsTargetY }, 500);
+  playSound('smsNotification', 0.8);
+  
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  await tweenValue(app, bgDark2, "alpha", 0, 1, 300);
+  
+  
+  const phoneTargetX = vw / 2;
+  const phoneTargetY = vh / 2;
+  
+  await tweenPosition(app, phone, { x: phoneTargetX, y: phoneTargetY }, 500);
+  
+  const phoneTextures = await loadPhoneTextures();
+  
+  if (phoneTextures.length > 0) {
+    const phoneAnim = new PIXI.AnimatedSprite(phoneTextures);
+    phoneAnim.anchor.set(0.5);
+    phoneAnim.x = vw / 2;
+    phoneAnim.y = vh / 2;
+    
+    if (isLandscape) {
+      const maxWidth = vw * 0.5;
+      const maxHeight = vh * 0.7;
+      const scaleByWidth = maxWidth / phoneAnim.texture.width;
+      const scaleByHeight = maxHeight / phoneAnim.texture.height;
+      const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+      phoneAnim.scale.set(phoneTargetScale);
+    } else {
+      const maxWidth = vw * 0.6;
+      const maxHeight = vh * 0.8;
+      const scaleByWidth = maxWidth / phoneAnim.texture.width;
+      const scaleByHeight = maxHeight / phoneAnim.texture.height;
+      const phoneTargetScale = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+      phoneAnim.scale.set(phoneTargetScale);
+    }
+    
+    phoneAnim.loop = false;
+    phoneAnim.animationSpeed = 0.5;
+    phoneAnim.zIndex = 17;
+    phoneAnim.name = 'phoneAnim';
+    
+    packshotOverlay.removeChild(phone);
+    delete packshotElements['phone'];
+    packshotOverlay.addChild(phoneAnim);
+    packshotElements['phoneAnim'] = phoneAnim;
+    
+    phoneAnim.play();
+    
+    playSoundsWithDelay('smsNotification', 'buttonClick', 5, 350);
+    
+    await new Promise(r => setTimeout(r, 2200));
+    
+    if (phoneAnim.parent) {
+      packshotOverlay.removeChild(phoneAnim);
+      delete packshotElements['phoneAnim'];
+    }
+  }
+  
+  // Задержка после анимации телефона убрана
+  
+  await showFinalPackshot(app, packshotOverlay, vw, vh);
+}
     function initPackshotWatcher(app, getState) {
       let watcherStarted = false;
       const check = () => {

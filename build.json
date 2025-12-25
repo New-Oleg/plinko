@@ -1,0 +1,9 @@
+{
+  "filename": "{app}_{name}_{version}_{date}_{language}_{network}",
+  "app": "Basketball",
+  "name": "MyGameConcept",
+  "version": "v1.0",
+  "language": "en",
+  "googlePlayUrl": "",
+  "appStoreUrl": ""
+}
