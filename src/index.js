@@ -72,11 +72,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       magicalWin: null
     };
 
-    // Флаг включения/выключения звука (всегда включен)
-    let isSoundOn = true;
+    // Флаг включения/выключения звука (всегда ВЫКЛЮЧЕН)
+    let isSoundOn = false;
 
-    // Функция инициализации аудио
+    // Disclaimer текст (будет виден всегда)
+    let disclaimerText = null;
+
+    // Функция инициализации аудио (закомментирована)
     function initAudio() {
+      /*
       try {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
@@ -93,10 +97,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           sounds[key] = createDummySound();
         });
       }
+      */
     }
 
-    // Функция загрузки звука из base64
+    // Функция загрузки звука из base64 (закомментирована)
     function loadSoundFromBase64(soundName, base64Data) {
+      /*
       return new Promise((resolve) => {
         try {
           if (!base64Data || base64Data.trim() === '') {
@@ -142,19 +148,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           resolve(sounds[soundName]);
         }
       });
+      */
     }
 
-    // Создание заглушки для звука
+    // Создание заглушки для звука (закомментирована)
     function createDummySound() {
+      /*
       const dummyAudio = new Audio();
       dummyAudio.volume = 0;
       const silentMp3 = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMQAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
       dummyAudio.src = silentMp3;
       return dummyAudio;
+      */
     }
 
-    // Функция воспроизведения звука с настройкой громкости
+    // Функция воспроизведения звука с настройкой громкости (закомментирована)
     function playSound(soundName, volume = 1.0) {
+      // Звук отключен - ничего не воспроизводим
+      return;
+      /*
       try {
         if (!isSoundOn) return; // Если звук выключен, не воспроизводим
         
@@ -203,10 +215,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (error) {
         console.error(`❌ Ошибка воспроизведения звука ${soundName}:`, error);
       }
+      */
     }
 
-    // Функция для воспроизведения звуков с задержкой
+    // Функция для воспроизведения звуков с задержкой (закомментирована)
     async function playSoundsWithDelay(soundName1, soundName2, times = 1, delay = 350) {
+      // Звук отключен - ничего не воспроизводим
+      return;
+      /*
       if (!isSoundOn) return; // Если звук выключен, не воспроизводим
       
       for (let i = 0; i < times; i++) {
@@ -216,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
+      */
     }
     
     // Создаем объект для управления ресурсами
@@ -594,8 +611,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       fontWeight: '600'
     });
 
+    // Стиль для надписи "For illustrative purposes only"
+    const disclaimerStyle = new TextStyle({
+      fontFamily: 'Arial',
+      fontSize: 16,
+      fill: '#ffffff',
+      fontWeight: 'normal',
+      align: 'center',
+      stroke: '#000000',
+      strokeThickness: 2
+    });
+
     balanceText = new Text({ text: "€200", style: balanceStyle });
     betText = new Text({ text: "INZET: 20 €", style: betStyle });
+    
+    // Создаем disclaimer текст (будет виден всегда)
+    disclaimerText = new Text({ 
+      text: "For illustrative purposes only", 
+      style: disclaimerStyle 
+    });
+    disclaimerText.zIndex = 999999; // Очень высокий zIndex
     
     let gameState = {
       index: 0
@@ -875,6 +910,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         return baseFontSize;
       }
     }
+
+    // Функция для обновления disclaimer текста (будет вызываться при каждом изменении размера)
+    function updateDisclaimerText() {
+      if (!disclaimerText) return;
+      
+      const vw = app.screen.width;
+      const vh = app.screen.height;
+      
+      disclaimerText.anchor.set(0.5);
+      disclaimerText.position.set(vw / 2, vh - 20); // Внизу по центру
+      
+      // Адаптивный размер шрифта для disclaimer
+      let disclaimerFontSize;
+      if (isPortrait) {
+        disclaimerFontSize = Math.min(vw * 0.03, 16);
+      } else {
+        disclaimerFontSize = Math.min(vh * 0.02, 16);
+      }
+      disclaimerText.style.fontSize = Math.max(10, disclaimerFontSize);
+      
+      // Добавляем disclaimerText в app.stage, если его там еще нет
+      // И удаляем из других контейнеров, чтобы он был только в app.stage
+      if (disclaimerText.parent && disclaimerText.parent !== app.stage) {
+        disclaimerText.parent.removeChild(disclaimerText);
+      }
+      
+      if (!disclaimerText.parent) {
+        app.stage.addChild(disclaimerText);
+      }
+      
+      // Устанавливаем самый высокий zIndex
+      disclaimerText.zIndex = 999999;
+    }
     
     function setupElements() {
       const vw = app.screen.width;
@@ -1054,13 +1122,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       setupMultipliers();
       
+      // Обновляем disclaimer текст (он будет добавлен в app.stage отдельно)
+      updateDisclaimerText();
+      
       play.removeAllListeners();
       play.on('pointerdown', (event) => {
         event.stopPropagation();
         
         animateButtonPress();
         
-        playSound('buttonClick', 0.5);
+        // Звук отключен
+        // playSound('buttonClick', 0.5);
         
         if (!isFirstClick) {
           isFirstClick = true;
@@ -1222,7 +1294,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updateBalance(newValue) {
-      playSound('balanceChange', 0.3);
+      // Звук отключен
+      // playSound('balanceChange', 0.3);
       
       currentBalance = newValue;
       
@@ -1278,7 +1351,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ballState.previousX = 0;
       ballState.rotationDirection = 0;
       
-      playSound('magicalWin', 0.5);
+      // Звук отключен
+      // playSound('magicalWin', 0.5);
       
       const basketIndex = ballToBasketMapping[ballIndex];
       
@@ -1451,6 +1525,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else if (currentPackshotStage === 'final' && packshotLayer) {
         updateFinalPackshotLayout(vw, vh);
       }
+      
+      // Обновляем disclaimer текст при обновлении layout пэкшота
+      updateDisclaimerText();
     }
     
     function updateInitialPackshotAnimation(vw, vh) {
@@ -1616,49 +1693,96 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function triggerSDKDownload() {
-      const googlePlayUrl = typeof GOOGLE_PLAY_URL !== 'undefined' ? GOOGLE_PLAY_URL : '';
-      const appStoreUrl = typeof APP_STORE_URL !== 'undefined' ? APP_STORE_URL : '';
-      
-      const hasValidUrls = googlePlayUrl.trim() || appStoreUrl.trim();
-      
-      if (!hasValidUrls) {
-        console.warn("Store URLs are empty, skipping download/redirect");
-        return;
-      }
-      
-      if (typeof sdk !== 'undefined' && sdk.install) {
-        sdk.install();
-      } 
-      else if (window.sdk?.download) {
-        window.sdk.download();
-      } else if (window.sdk?.openStore) {
-        window.sdk.openStore();
-      } else if (window.mraid?.open) {
-        window.mraid.open();
-      } else if (window.CTAsdk?.install) {
-        window.CTAsdk.install();
-      } else if (window.fbPlayableAd?.onCTAClick) {
-        window.fbPlayableAd.onCTAClick();
-      } else {
-        console.warn("No SDK found for download handling");
-        
-        const isAndroid = /Android/.test(navigator.userAgent);
-        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        
-        let url;
-        if (isAndroid && googlePlayUrl) {
-          url = googlePlayUrl;
-        } else if (isIOS && appStoreUrl) {
-          url = appStoreUrl;
-        } else {
-          url = googlePlayUrl || appStoreUrl;
-        }
-        
-        if (url) {
-          window.open(url, '_blank');
-        }
-      }
+  // Функция проверки валидности ссылки
+  function isUrlValid(url) {
+    return url && 
+           url.trim() !== '' && 
+           !url.includes('ССЫЛКУ_СЮДА') && 
+           url !== 'about:blank';
+  }
+  
+  const googlePlayUrl = typeof GOOGLE_PLAY_URL !== 'undefined' ? GOOGLE_PLAY_URL : '';
+  const appStoreUrl = typeof APP_STORE_URL !== 'undefined' ? APP_STORE_URL : '';
+  
+  // Проверяем обе ссылки на валидность
+  const hasValidGoogleUrl = isUrlValid(googlePlayUrl);
+  const hasValidAppStoreUrl = isUrlValid(appStoreUrl);
+  
+  // Если обе ссылки невалидны - выходим
+  if (!hasValidGoogleUrl && !hasValidAppStoreUrl) {
+    console.warn("Store URLs are empty, contain placeholder, or are invalid. Skipping download/redirect");
+    return;
+  }
+  
+  const isAndroid = /Android/.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  
+  // Проверяем, есть ли валидная ссылка для текущей платформы
+  let platformHasValidUrl = false;
+  if (isAndroid && hasValidGoogleUrl) {
+    platformHasValidUrl = true;
+  } else if (isIOS && hasValidAppStoreUrl) {
+    platformHasValidUrl = true;
+  } else if (!isAndroid && !isIOS && (hasValidGoogleUrl || hasValidAppStoreUrl)) {
+    // Для других платформ (десктоп) используем любую валидную
+    platformHasValidUrl = true;
+  }
+  
+  if (!platformHasValidUrl) {
+    console.warn("No valid store URL for the current platform. Skipping download/redirect");
+    return;
+  }
+  
+  // Обработка через различные SDK (только если есть валидная ссылка)
+  if (typeof sdk !== 'undefined' && sdk.install) {
+    // Передаем валидную ссылку в SDK, если API позволяет
+    try {
+      sdk.install();
+    } catch (e) {
+      console.error('SDK install failed:', e);
     }
+  } 
+  else if (window.sdk?.download) {
+    window.sdk.download();
+  } else if (window.sdk?.openStore) {
+    window.sdk.openStore();
+  } else if (window.mraid?.open) {
+    // Для MRAID передаем конкретную ссылку
+    const url = getPlatformSpecificUrl(googlePlayUrl, appStoreUrl, isAndroid, isIOS);
+    if (url && isUrlValid(url)) {
+      window.mraid.open(url);
+    }
+  } else if (window.CTAsdk?.install) {
+    window.CTAsdk.install();
+  } else if (window.fbPlayableAd?.onCTAClick) {
+    window.fbPlayableAd.onCTAClick();
+  } else {
+    console.warn("No SDK found for download handling, using fallback");
+    
+    // Fallback: открываем валидную ссылку напрямую
+    const url = getPlatformSpecificUrl(googlePlayUrl, appStoreUrl, isAndroid, isIOS);
+    
+    if (url && isUrlValid(url)) {
+      window.open(url, '_blank');
+    } else {
+      console.warn("No valid URL available for fallback redirect");
+    }
+  }
+  
+  // Вспомогательная функция для выбора правильной ссылки
+  function getPlatformSpecificUrl(googleUrl, appleUrl, android, ios) {
+    if (android && isUrlValid(googleUrl)) {
+      return googleUrl;
+    } else if (ios && isUrlValid(appleUrl)) {
+      return appleUrl;
+    } else {
+      // Для других платформ или если платформа не определена
+      // Возвращаем первую валидную ссылку
+      return isUrlValid(googleUrl) ? googleUrl : 
+             isUrlValid(appleUrl) ? appleUrl : '';
+    }
+  }
+}
 
     function updateFinalPackshotLayout(vw, vh) {
       if (!packshotLayer) return;
@@ -1895,7 +2019,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         animationPromises.push(tweenValue(app, coinsAnim, "alpha", 0, 1, 400));
       }
       
-      playSound('bigWin', 0.7);
+      // Звук отключен
+      // playSound('bigWin', 0.7);
       
       await Promise.all(animationPromises);
       
@@ -1945,13 +2070,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         phoneAnim.play();
         
-        // Воспроизводим звуки без smsNotification
+        // Звуки отключены
+        /*
         for (let i = 0; i < 5; i++) {
           playSound('buttonClick', 0.5);
           if (i < 4) {
             await new Promise(resolve => setTimeout(resolve, 350));
           }
         }
+        */
         
         await new Promise(r => setTimeout(r, 2200));
         
@@ -1979,7 +2106,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       app.ticker.add(check);
     }
 
-    initAudio();
+    // Аудио инициализация отключена
+    // initAudio();
 
     app.ticker.add(() => {
       animateBalance();
